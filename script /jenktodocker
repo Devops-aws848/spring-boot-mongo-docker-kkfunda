@@ -1,0 +1,60 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'mvn' // Make sure this name matches Jenkins global tools
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'jenkindocker', 
+                    url: 'https://github.com/Devops-aws848/spring-boot-mongo-docker-kkfunda.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+        stage('SonarQube') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh """
+                    mvn sonar:sonar \
+                        -Dsonar.projectKey=spring-boot-mongo \
+                        -Dsonar.projectName='Spring Boot Mongo Project' \
+                    """
+                }
+            }
+        }
+        stage('Build & Tag Docker Image') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker') {
+                        sh 'docker build -t gyeshvak2019/mongospring:latest .'
+                    }
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker') {
+                        sh 'docker push gyeshvak2019/mongospring:latest'
+                    }
+                }
+            }
+        }
+        stage('create container') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker') {
+                        sh 'docker run -d -p 8085:8080 --name webapp gyeshvak2019/mongospring:latest'
+                    }
+                }
+            }
+        }
+    }
+}
